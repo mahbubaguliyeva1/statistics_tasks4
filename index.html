@@ -65,7 +65,7 @@
                 <input type="number" id="num_trajectories" value="100" min="10" max="500" step="10" class="w-24 p-2 border rounded-lg text-center focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="flex items-center space-x-4">
-                <label for="max_trials" class="font-medium text-gray-700">Max Trials (N_{max}):</label>
+                <label for="max_trials" class="font-medium text-gray-700">Max Trials (N_{max}$):</label>
                 <input type="number" id="max_trials" value="2000" min="500" max="5000" step="500" class="w-28 p-2 border rounded-lg text-center focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <button id="run_sim" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg">
@@ -241,8 +241,9 @@
 
 
             // 3. Draw Trajectories
-            chartCtx.strokeStyle = `rgba(100, 116, 139, 0.1)`; // Slate Gray, very transparent
-            chartCtx.lineWidth = 0.8;
+            // FIX: Increased opacity and width to ensure visibility
+            chartCtx.strokeStyle = `rgba(79, 70, 229, 0.3)`; // Indigo, clearer transparency
+            chartCtx.lineWidth = 1.0;
             
             const step_x = CHART_W / n_max; // Width of one trial step on the chart (1 to N_max)
 
@@ -389,3 +390,8 @@
             
             // Run the initial simulation on load
             runSimulation();
+        }
+
+    </script>
+</body>
+</html>
