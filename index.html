@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Law of Large Numbers Simulation</title>
+    <!-- Load Tailwind CSS for utility styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the visualization */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Light background */
+            min-height: 100vh;
+        }
+        .container-shadow {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .canvas-container {
+            position: relative;
+            background: white;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-6xl mx-auto space-y-8">
+        <!-- Header and Explanation -->
+        <header class="text-center pb-4 border-b border-indigo-200">
+            <h1 class="text-4xl font-extrabold text-indigo-700">The Law of Large Numbers (LLN) Simulator</h1>
+            <p class="mt-2 text-xl text-gray-600">Simulation created by Guliyeva Mahbuba</p>
+        </header>
+
+        <!-- Detailed Task Explanation -->
+        <div class="bg-white p-6 rounded-xl container-shadow">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Detailed Explanation of the Task</h2>
+            <p class="text-gray-700 leading-relaxed">
+                This visualization demonstrates the Law of Large Numbers (LLN), a fundamental concept in probability.
+                The LLN states that as the number of trials (n) in a random process increases, the average result (or relative frequency, f(n)) will tend to converge on the theoretical expected value (the underlying probability of success, p).
+            </p>
+            <ol class="list-decimal list-inside mt-4 space-y-2 text-gray-700">
+                <li>
+                    <strong>The Trajectories (Main Chart):</strong> We run m independent simulations (trajectories) of a simple Bernoulli trial (like a biased coin flip). For each simulation, we track the relative frequency f(n) = frac{text{Successes}}{n} as n goes from 1 to N_{max}. The plot shows how all these individual results start scattered but inevitably converge towards the solid green line representing the true probability p.
+                </li>
+                <li>
+                    <strong>The Empirical Distribution (Vertical Histogram):</strong> Once the maximum number of trials N_{max} is reached, we collect the final relative frequency f(N_{max}) from all m simulations. The vertical histogram on the right displays the distribution of these final results. The LLN predicts that this distribution will be extremely tight and centered directly over p, illustrating how randomness "evens out" over the long run.
+                </li>
+            </ol>
+        </div>
+
+        <!-- Parameters Control Panel -->
+        <div class="bg-white p-6 rounded-xl container-shadow flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <label for="prob_p" class="font-medium text-gray-700">Probability (p):</label>
+                <input type="number" id="prob_p" value="0.5" min="0.1" max="0.9" step="0.05" class="w-24 p-2 border rounded-lg text-center focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div class="flex items-center space-x-4">
+                <label for="num_trajectories" class="font-medium text-gray-700">Trajectories (m):</label>
+                <input type="number" id="num_trajectories" value="100" min="10" max="500" step="10" class="w-24 p-2 border rounded-lg text-center focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div class="flex items-center space-x-4">
+                <label for="max_trials" class="font-medium text-gray-700">Max Trials (N_{max}):</label>
+                <input type="number" id="max_trials" value="2000" min="500" max="5000" step="500" class="w-28 p-2 border rounded-lg text-center focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <button id="run_sim" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg">
+                Run Simulation
+            </button>
+        </div>
+
+        <!-- Canvas and Visualization Area -->
+        <div class="flex flex-col lg:flex-row gap-4">
+            <!-- Main Chart Area -->
+            <div class="canvas-container flex-grow aspect-[4/3] lg:aspect-auto" style="min-height: 500px;">
+                <canvas id="llnChart" class="w-full h-full"></canvas>
+            </div>
+            <!-- Histogram Area -->
+            <div class="canvas-container lg:w-48 aspect-[1/3] lg:aspect-auto" style="min-height: 500px;">
+                <canvas id="llnHistogram" class="w-full h-full"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Global Variables and Setup ---
+        const CHART_ID = 'llnChart';
+        const HISTOGRAM_ID = 'llnHistogram';
+        const P_INPUT = document.getElementById('prob_p');
+        const M_INPUT = document.getElementById('num_trajectories');
+        const N_INPUT = document.getElementById('max_trials');
+        const RUN_BUTTON = document.getElementById('run_sim');
+
+        // Initial Parameters (Declared globally using var to prevent environment-specific redeclaration errors)
+        var p;
+        var m;
+        var n_max;
+        
+        // Data structure to hold all trajectories
+        let allTrajectories = []; // Array of arrays: [[f(1), f(2), ...], [...], ...]
+
+        // Canvas setup
+        let chartCanvas, chartCtx;
+        let histCanvas, histCtx;
+
+        // Initialization function
+        function initCanvas() {
+            chartCanvas = document.getElementById(CHART_ID);
+            chartCtx = chartCanvas.getContext('2d');
+            histCanvas = document.getElementById(HISTOGRAM_ID);
+            histCtx = histCanvas.getContext('2d');
+
+            // Set canvas size to match container size (Crucial for responsiveness)
+            const chartContainer = chartCanvas.parentElement;
+            chartCanvas.width = chartContainer.clientWidth;
+            chartCanvas.height = chartContainer.clientHeight;
+            
+            const histContainer = histCanvas.parentElement;
+            histCanvas.width = histContainer.clientWidth;
+            histCanvas.height = histContainer.clientHeight;
+        }
+
+        // --- Core Simulation Logic ---
+
+        /**
+         * Simulates a single trajectory of n_max Bernoulli trials.
+         * @param {number} p - The probability of success.
+         * @param {number} n_max - The maximum number of trials.
+         * @returns {number[]} Array of relative frequencies f(n).
+         */
+        function runSingleTrajectory(p, n_max) {
+            let successes = 0;
+            const frequencies = [];
+
+            for (let n = 1; n <= n_max; n++) {
+                // Bernoulli trial: 1 (success) if random() < p, 0 (failure) otherwise
+                if (Math.random() < p) {
+                    successes++;
+                }
+                // Calculate relative frequency and store it
+                frequencies.push(successes / n);
+            }
+            return frequencies;
+        }
+
+        /**
+         * Runs the full simulation m times.
+         */
+        function runSimulation() {
+            allTrajectories = [];
+            RUN_BUTTON.disabled = true;
+            RUN_BUTTON.textContent = 'Simulating...';
+
+            // Use a timeout to allow the browser to update the UI before running the heavy loop
+            setTimeout(() => {
+                for (let i = 0; i < m; i++) {
+                    // Running a single trajectory
+                    const trajectory = runSingleTrajectory(p, n_max);
+                    allTrajectories.push(trajectory);
+                }
+
+                // Draw results
+                drawChart();
+                drawHistogram();
+
+                RUN_BUTTON.disabled = false;
+                RUN_BUTTON.textContent = 'Run Simulation';
+            }, 50); // Small delay
+        }
+
+        // --- Visualization Functions ---
+
+        /**
+         * Draws the main line chart showing the m trajectories.
+         */
+        function drawChart() {
+            if (!chartCtx) return;
+
+            const W = chartCanvas.width;
+            const H = chartCanvas.height;
+            const PADDING = 40;
+            const CHART_W = W - 2 * PADDING;
+            const CHART_H = H - 2 * PADDING;
+
+            // Clear canvas
+            chartCtx.clearRect(0, 0, W, H);
+
+            // 1. Draw Axes and Labels
+            chartCtx.strokeStyle = '#ccc';
+            chartCtx.lineWidth = 1;
+            
+            // Draw Y-axis (left)
+            chartCtx.beginPath();
+            chartCtx.moveTo(PADDING, PADDING);
+            chartCtx.lineTo(PADDING, H - PADDING);
+            chartCtx.stroke();
+
+            // Draw X-axis (bottom)
+            chartCtx.beginPath();
+            chartCtx.moveTo(PADDING, H - PADDING);
+            chartCtx.lineTo(W - PADDING, H - PADDING);
+            chartCtx.stroke();
+
+            // Draw Y-axis labels (0.0, 0.5, 1.0)
+            chartCtx.fillStyle = '#64748b';
+            chartCtx.font = '12px Inter';
+            chartCtx.textAlign = 'right';
+            chartCtx.textBaseline = 'middle';
+
+            // Label 1.0
+            chartCtx.fillText('1.0', PADDING - 5, PADDING);
+            // Label 0.5
+            chartCtx.fillText('0.5', PADDING - 5, H - PADDING - CHART_H / 2);
+            // Label 0.0
+            chartCtx.fillText('0.0', PADDING - 5, H - PADDING);
+
+            // X-axis labels (0, N_max/2, N_max)
+            chartCtx.textAlign = 'center';
+            chartCtx.textBaseline = 'top';
+            chartCtx.fillText('0', PADDING, H - PADDING + 5);
+            chartCtx.fillText(n_max, W - PADDING, H - PADDING + 5);
+            chartCtx.fillText(n_max / 2, PADDING + CHART_W / 2, H - PADDING + 5);
+            chartCtx.textBaseline = 'middle';
+
+            // 2. Draw True Probability Line (p)
+            const p_y = PADDING + CHART_H * (1 - p);
+            chartCtx.strokeStyle = '#10b981'; // Emerald Green
+            chartCtx.lineWidth = 2;
+            chartCtx.beginPath();
+            chartCtx.moveTo(PADDING, p_y);
+            chartCtx.lineTo(W - PADDING, p_y);
+            chartCtx.stroke();
+            
+            chartCtx.textAlign = 'left';
+            chartCtx.fillText(`P = ${p}`, W - PADDING + 5, p_y);
+
+
+            // 3. Draw Trajectories
+            chartCtx.strokeStyle = `rgba(100, 116, 139, 0.1)`; // Slate Gray, very transparent
+            chartCtx.lineWidth = 0.8;
+            
+            const step_x = CHART_W / n_max; // Width of one trial step on the chart (1 to N_max)
+
+            for (const trajectory of allTrajectories) {
+                if (trajectory.length === 0) continue;
+                
+                chartCtx.beginPath();
+                
+                // Start at n=1 (index 0). X position is 1 * step_x
+                const y_start = PADDING + CHART_H * (1 - trajectory[0]);
+                chartCtx.moveTo(PADDING + step_x, y_start);
+
+                // Iterate through the rest of the points (index i = 1 to n_max - 1)
+                for (let i = 1; i < n_max; i++) {
+                    // Trial count is i + 1. X position is (i + 1) * step_x
+                    const x = PADDING + (i + 1) * step_x; 
+                    const y = PADDING + CHART_H * (1 - trajectory[i]);
+                    chartCtx.lineTo(x, y);
+                }
+                chartCtx.stroke();
+            }
+        }
+
+        /**
+         * Draws the vertical histogram of the final frequencies f(n_max).
+         */
+        function drawHistogram() {
+            if (!histCtx || allTrajectories.length === 0) return;
+
+            const W = histCanvas.width;
+            const H = histCanvas.height;
+            const PADDING = 20;
+            const CHART_W = W - 2 * PADDING;
+            const CHART_H = H - 2 * PADDING;
+
+            // Clear canvas
+            histCtx.clearRect(0, 0, W, H);
+
+            // 1. Data Collection and Binning
+            const finalFrequencies = allTrajectories.map(t => t[t.length - 1]);
+            const numBins = 15;
+            const binSize = 1.0 / numBins;
+            const bins = new Array(numBins).fill(0);
+
+            for (const freq of finalFrequencies) {
+                // Determine which bin the frequency falls into
+                const binIndex = Math.floor(freq * numBins);
+                if (binIndex >= 0 && binIndex < numBins) {
+                    bins[binIndex]++;
+                } else if (binIndex === numBins) {
+                    // Handle edge case 1.0 falling into the last bin
+                    bins[numBins - 1]++;
+                }
+            }
+
+            const maxCount = Math.max(...bins);
+            if (maxCount === 0) return; // Should not happen if m > 0
+
+            // 2. Draw Y-axis (The frequency values 0.0 to 1.0)
+            histCtx.strokeStyle = '#ccc';
+            histCtx.lineWidth = 1;
+            histCtx.beginPath();
+            histCtx.moveTo(W - PADDING, PADDING);
+            histCtx.lineTo(W - PADDING, H - PADDING);
+            histCtx.stroke();
+            
+            // Draw True Probability Line (p)
+            const p_y = PADDING + CHART_H * (1 - p);
+            histCtx.strokeStyle = '#10b981'; // Emerald Green
+            histCtx.lineWidth = 2;
+            histCtx.beginPath();
+            histCtx.moveTo(PADDING, p_y);
+            histCtx.lineTo(W - PADDING, p_y);
+            histCtx.stroke();
+            
+            // Y-axis labels
+            histCtx.fillStyle = '#64748b';
+            histCtx.font = '12px Inter';
+            histCtx.textAlign = 'left';
+            histCtx.textBaseline = 'middle';
+            histCtx.fillText('1.0', W - PADDING + 5, PADDING);
+            histCtx.fillText('0.5', W - PADDING + 5, H - PADDING - CHART_H / 2);
+            histCtx.fillText('0.0', W - PADDING + 5, H - PADDING);
+
+            // 3. Draw Vertical Histogram Bars
+            const barWidth = CHART_H / numBins;
+
+            histCtx.fillStyle = '#6366f1'; // Indigo 500
+
+            for (let i = 0; i < numBins; i++) {
+                // Bar height is proportional to the count
+                const barHeight = (bins[i] / maxCount) * CHART_W;
+                
+                // Y position (bottom of bar is determined by frequency bin)
+                // The canvas Y-axis is inverted (0 is top), so we calculate from the bottom-up.
+                const y = H - PADDING - (i + 1) * barWidth; 
+                
+                // Draw the rectangle (x, y, width, height)
+                histCtx.fillRect(W - PADDING - barHeight, y, barHeight, barWidth - 1); // -1 for a slight gap
+            }
+            
+            // Label for the true probability P
+            histCtx.fillText(`P=${p}`, W - PADDING + 5, p_y);
+        }
+
+        // --- Event Listeners and Initialization ---
+
+        function updateParamsAndRun() {
+            // Validate and update parameters
+            const new_p = parseFloat(P_INPUT.value);
+            const new_m = parseInt(M_INPUT.value);
+            const new_n = parseInt(N_INPUT.value);
+
+            if (isNaN(new_p) || new_p <= 0 || new_p >= 1 || isNaN(new_m) || new_m < 1 || isNaN(new_n) || new_n < 1) {
+                // Display error in console if parameters are invalid
+                console.error("Invalid parameters detected. Please ensure P is between 0 and 1, and M/N_max are positive integers.");
+                return;
+            }
+
+            p = new_p;
+            m = new_m;
+            n_max = new_n;
+            
+            // Re-run simulation
+            runSimulation();
+        }
+
+        window.onload = function() {
+            // Initialize parameters from input fields once DOM is loaded
+            p = parseFloat(P_INPUT.value);
+            m = parseInt(M_INPUT.value);
+            n_max = parseInt(N_INPUT.value);
+
+            // Initial setup and draw
+            initCanvas();
+            window.addEventListener('resize', () => {
+                initCanvas(); // Re-initialize on resize
+                drawChart(); // Redraw with new dimensions
+                drawHistogram(); // Redraw histogram
+            });
+
+            // Set up button listener
+            RUN_BUTTON.addEventListener('click', updateParamsAndRun);
+            
+            // Run the initial simulation on load
+            runSimulation();
